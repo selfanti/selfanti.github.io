@@ -37,6 +37,7 @@ analytics:
 include:
   - _pages
 exclude:
+  - AGENTS.md
   - .asset-cache
   - .bundle
   - .devcontainer

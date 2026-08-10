@@ -24,6 +24,8 @@ docker compose up
 
 在 `_posts/` 中按 `YYYY-MM-DD-title.md` 格式添加 Markdown 文件。
 
+博客 front matter、MathJax 公式写法和发布前验证要求参见 [`AGENTS.md`](AGENTS.md)。
+
 ## GitHub Pages
 
 将仓库推送为 `selfanti/selfanti.github.io` 后，在仓库 Settings -> Pages 中选择从 `main` 分支发布。若使用其他仓库名，请同步修改 `_config.yml` 中的 `url`、`baseurl` 和 `repository`。
