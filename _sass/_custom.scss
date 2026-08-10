@@ -154,7 +154,7 @@ td > code::after {
   aspect-ratio: 1;
   overflow: hidden;
   border: 1px solid var(--global-border-color);
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--surface);
 }
 
