@@ -224,6 +224,11 @@ td > code::after {
   color: var(--accent);
 }
 
+.author-links span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .academic-about {
   max-width: 940px;
   margin-bottom: 3.6rem;
@@ -250,7 +255,7 @@ td > code::after {
 
 .research-section {
   max-width: 940px;
-  margin-bottom: 4rem;
+  margin-bottom: 3.6rem;
 }
 
 .research-interest-list {
@@ -277,6 +282,49 @@ td > code::after {
   color: var(--global-text-color-light);
   font-size: 0.92rem !important;
   line-height: 1.75;
+}
+
+.education-section {
+  max-width: 940px;
+  margin-bottom: 4rem;
+}
+
+.education-section h2 {
+  margin: 0 0 1.15rem;
+  color: var(--global-text-color);
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.education-list {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.education-list article {
+  padding: 0.15rem 0 0.2rem 1.35rem;
+  border-left: 3px solid var(--global-border-color);
+}
+
+.education-list h3 {
+  margin: 0 0 0.25rem;
+  color: var(--accent);
+  font-size: 1.08rem;
+}
+
+.education-list p,
+.education-list time {
+  display: block;
+  margin: 0;
+  color: var(--global-text-color);
+  font-size: 0.94rem;
+  line-height: 1.7;
+}
+
+.education-list .education-note {
+  margin-top: 0.2rem;
+  color: var(--global-text-color-light);
+  font-size: 0.82rem;
 }
 
 .publication-list,
@@ -485,7 +533,8 @@ td > code::after {
   }
 
   .academic-about h1,
-  .research-section h2 {
+  .research-section h2,
+  .education-section h2 {
     font-size: 1.65rem;
   }
 

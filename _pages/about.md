@@ -28,3 +28,20 @@ classes: home-page
     </article>
   </div>
 </section>
+
+<section class="education-section" aria-labelledby="education-title">
+  <h2 id="education-title">Education</h2>
+  <div class="education-list">
+    <article>
+      <h3>中国科学院大学</h3>
+      <p>计算机科学与技术 · 工学硕士（预计）</p>
+      <time datetime="2026-09">2026.09 - 2029.06</time>
+    </article>
+    <article>
+      <h3>北京理工大学</h3>
+      <p>自动化 · 工学学士</p>
+      <time datetime="2020-10">2020.10 - 2024.06</time>
+      <p class="education-note">GPA 3.34 · 睿信书院院级奖学金</p>
+    </article>
+  </div>
+</section>
