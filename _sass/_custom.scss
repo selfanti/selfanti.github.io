@@ -458,6 +458,14 @@ td > code::after {
     padding-left: 2.8rem;
   }
 
+  #main > .page:only-child {
+    float: none;
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-left: 0;
+  }
+
   .page .page__inner-wrap,
   .page .page__content {
     width: 100%;

@@ -33,7 +33,7 @@ classes: home-page
   <h2 id="education-title">Education</h2>
   <div class="education-list">
     <article>
-      <h3>中国科学院大学</h3>
+      <h3>中国科学院大学软件研究所</h3>
       <p>计算机科学与技术 · 工学硕士（预计）</p>
       <time datetime="2026-09">2026.09 - 2029.06</time>
     </article>

@@ -1,7 +1,7 @@
 ---
 permalink: /blog/
 title: "Blog"
-author_profile: true
+author_profile: false
 ---
 
 {% if site.posts.size > 0 %}
