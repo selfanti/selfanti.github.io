@@ -25,11 +25,11 @@ read_time: true
 
 ### 1. 主要方法
 
-论文解决多语言预训练中的语言平衡问题，即英语等高资源语言数据多出数个数量级，而简单增加低资源语言采样率又会造成大量重复与过拟合（Sec. 1）。UniMax 给定总字符预算 C 和每种语言最多重复轮数 N，按语料字符数从小到大遍历语言，将当前语言预算设为剩余预算均分值与 N·c_l 的较小者，最后归一化得到采样分布，并用对应分布单独训练 SentencePiece 词表（Sec. 3，Algorithm 1）。这种近似 water-filling 的分配一方面给数据充足的语言接近均匀的预算，另一方面显式封顶尾部语言的重复次数，因此可能同时减轻低资源语言欠采样与高温采样的记忆、浪费和规模化过拟合问题（Sec. 1，Sec. 3）。
+论文解决多语言预训练中的语言平衡问题，即英语等高资源语言数据多出数个数量级，而简单增加低资源语言采样率又会造成大量重复与过拟合（Sec. 1）。UniMax 给定总字符预算 $$C$$ 和每种语言最多重复轮数 $$N$$，按语料字符数从小到大遍历语言，将当前语言预算设为剩余预算均分值与 $$N \cdot c_l$$ 的较小者，最后归一化得到采样分布，并用对应分布单独训练 SentencePiece 词表（Sec. 3，Algorithm 1）。这种近似 water-filling 的分配一方面给数据充足的语言接近均匀的预算，另一方面显式封顶尾部语言的重复次数，因此可能同时减轻低资源语言欠采样与高温采样的记忆、浪费和规模化过拟合问题（Sec. 1，Sec. 3）。
 
 ### 2. 与之前论文的不同或改进
 
-先前主流温度采样使用 q_l ∝ p_l^(1/τ) 把语料分布压平，但单个 τ 无法保证在平衡高、中资源语言的同时避免尾部语言被重复数十至上百轮，而完全均匀采样同样没有重复上限（Sec. 1–3）。UniMax 把间接调温改成“尽量均匀但每种语言最多 N 轮”的显式约束，因而在 1.2B 到 13B 参数范围内获得更稳定的下游收益，代价是分布依赖训练预算 C 与上限 N，并需要可靠的逐语言语料规模统计（Sec. 3–5）。
+先前主流温度采样使用 $$q_l \propto p_l^{1/\tau}$$ 把语料分布压平，但单个 $$\tau$$ 无法保证在平衡高、中资源语言的同时避免尾部语言被重复数十至上百轮，而完全均匀采样同样没有重复上限（Sec. 1–3）。UniMax 把间接调温改成“尽量均匀但每种语言最多 $$N$$ 轮”的显式约束，因而在 1.2B 到 13B 参数范围内获得更稳定的下游收益，代价是分布依赖训练预算 $$C$$ 与上限 $$N$$，并需要可靠的逐语言语料规模统计（Sec. 3–5）。
 
 ![Figure 1b：温度采样与 UniMax 的语言采样分布](/images/blog/data-mixture/unimax/figure-1b-sampling-distribution.png)
 
@@ -41,11 +41,11 @@ read_time: true
 
 ### 4. 实验设计和结果
 
-实验使用提高语言识别阈值后过滤的 mC4，覆盖 101 种语言与 6 种拉丁转写变体，为每种采样策略训练独立的 256K SentencePiece 词表，并以 mT5 式 encoder-decoder、span corruption、250K 步和 1/8 字符预算训练 Large 1.2B、XL 3.7B、XXL 13B 模型，对比 τ = 1、τ = 3.33 与 UniMax，主要评测 TyDi QA GoldP 和 WMT21，另测 XNLI、XQuAD、MLQA 与 PAWS-X（Sec. 4）。训练曲线观察到 τ = 3.33 的 Yoruba loss 随模型放大而出现越来越明显的反弹，并在 1M 步长训练中约 300K 步后连 Large 模型也开始过拟合，而 UniMax 缩小英语与 Yoruba 的 loss 差距且未呈现同类趋势（Sec. 5.1，Fig. 2–3）。TyDi QA 平均 EM/F1 在 Large、XL、XXL 上分别为 83.3、83.9、84.4，高于 τ = 3.33 的 82.0、83.4、84.0 和 τ = 1 的 80.1、81.7、82.2（Fig. 4，Table 7）。WMT21 上 UniMax 在三个模型规模的平均 chrF 均最高且多数语言方向受益，在 Large 的 1/2 字符预算消融中也以 83.1 超过 τ = 3.33 的 82.8 和 τ = 1 的 81.2，而 N = 1/5/10 的 TyDi QA 为 82.2/81.5/81.8，显示禁止重复略优但差异较小（Sec. 5.2–5.3，Fig. 6，Table 2）。使用 UniMax 训练万亿 token 的 umT5 在多数规模与任务上优于 mT5，例如 XXL 的 XNLI 为 87.8 对 87.1、XQuAD 为 77.9/88.2 对 71.3/85.2、TyDi QA 为 81.2/89.7 对 79.5/88.7，但 PAWS-X 略低为 91.2 对 91.5（Sec. 6，Table 3）。作者因训练不稳定而省略 umT5-Large，且最终 umT5 同时改变了采样、语料日期和过滤规则，不过单独刷新 mC4 在 XNLI 上仅带来 0.1 分提升，而完整方案相对 mT5 提升 1.0 分，这支持采样是主要贡献但不能完全排除其他变化（Sec. 6，Appendix E，Table 6）。
+实验使用提高语言识别阈值后过滤的 mC4，覆盖 101 种语言与 6 种拉丁转写变体，为每种采样策略训练独立的 256K SentencePiece 词表，并以 mT5 式 encoder-decoder、span corruption、250K 步和 $$1/8$$ 字符预算训练 Large 1.2B、XL 3.7B、XXL 13B 模型，对比 $$\tau = 1$$、$$\tau = 3.33$$ 与 UniMax，主要评测 TyDi QA GoldP 和 WMT21，另测 XNLI、XQuAD、MLQA 与 PAWS-X（Sec. 4）。训练曲线观察到 $$\tau = 3.33$$ 的 Yoruba loss 随模型放大而出现越来越明显的反弹，并在 1M 步长训练中约 300K 步后连 Large 模型也开始过拟合，而 UniMax 缩小英语与 Yoruba 的 loss 差距且未呈现同类趋势（Sec. 5.1，Fig. 2–3）。TyDi QA 平均 EM/F1 在 Large、XL、XXL 上分别为 83.3、83.9、84.4，高于 $$\tau = 3.33$$ 的 82.0、83.4、84.0 和 $$\tau = 1$$ 的 80.1、81.7、82.2（Fig. 4，Table 7）。WMT21 上 UniMax 在三个模型规模的平均 chrF 均最高且多数语言方向受益，在 Large 的 $$1/2$$ 字符预算消融中也以 83.1 超过 $$\tau = 3.33$$ 的 82.8 和 $$\tau = 1$$ 的 81.2，而 $$N \in \{1,5,10\}$$ 的 TyDi QA 为 82.2/81.5/81.8，显示禁止重复略优但差异较小（Sec. 5.2–5.3，Fig. 6，Table 2）。使用 UniMax 训练万亿 token 的 umT5 在多数规模与任务上优于 mT5，例如 XXL 的 XNLI 为 87.8 对 87.1、XQuAD 为 77.9/88.2 对 71.3/85.2、TyDi QA 为 81.2/89.7 对 79.5/88.7，但 PAWS-X 略低为 91.2 对 91.5（Sec. 6，Table 3）。作者因训练不稳定而省略 umT5-Large，且最终 umT5 同时改变了采样、语料日期和过滤规则，不过单独刷新 mC4 在 XNLI 上仅带来 0.1 分提升，而完整方案相对 mT5 提升 1.0 分，这支持采样是主要贡献但不能完全排除其他变化（Sec. 6，Appendix E，Table 6）。
 
 ![Figure 2b：高温采样下过拟合随模型规模加剧](/images/blog/data-mixture/unimax/figure-2b-temperature-overfitting.png)
 
-*Figure 2b 原图（τ = 3.33 的 held-out loss）*
+*Figure 2b 原图（$$\tau = 3.33$$ 的 held-out loss）*
 
 ![Figure 4a：TyDi QA 随模型规模变化](/images/blog/data-mixture/unimax/figure-4a-tydi-scaling.png)
 
@@ -78,7 +78,7 @@ read_time: true
 
 ### 2. 与之前论文的不同或改进
 
-最相关的先前方法如 DoReMi、DoGE 和在线数据混合通常依靠一个代理或最终模型进行较长训练并根据训练动态估计或持续调整域权重，数据 scaling-law 路线则尝试预设可解释的损失函数形式来外推 mixture 效果（Sec. 1–2）。RegMix 把它们改成许多可并行的短程 1M 代理实验加通用回归搜索，主实验的 mixture 搜索 FLOPs 为 3.5 × 10¹⁸、约为 DoReMi 的十分之一，但代价是依赖排名不变性、已知域标签、代理与大模型使用相同 tokenizer 等经验假设（Table 4，Sec. 6）。
+最相关的先前方法如 DoReMi、DoGE 和在线数据混合通常依靠一个代理或最终模型进行较长训练并根据训练动态估计或持续调整域权重，数据 scaling-law 路线则尝试预设可解释的损失函数形式来外推 mixture 效果（Sec. 1–2）。RegMix 把它们改成许多可并行的短程 1M 代理实验加通用回归搜索，主实验的 mixture 搜索 FLOPs 为 $$3.5\times10^{18}$$、约为 DoReMi 的十分之一，但代价是依赖排名不变性、已知域标签、代理与大模型使用相同 tokenizer 等经验假设（Table 4，Sec. 6）。
 
 ![Figure 2：少量 token 的小模型排名被迁移到更多 token 的大模型](/images/blog/data-mixture/regmix/figure-2-rank-overview.png)
 
@@ -90,7 +90,7 @@ read_time: true
 
 ### 4. 实验设计和结果
 
-主实验使用 Pile 中 17 个可用且无版权争议的域，以 512 × 1M 参数模型各训练 1B tokens 来拟合 ridge 与 LightGBM，并在未见过的 1M、60M 和 64 × 1B 参数模型 mixture 上测试，其中 1B 模型各训练 25B tokens，下游主表覆盖 14 项 0-shot 到 5-shot 任务并以 accuracy 或 normalized accuracy 评测（Sec. 4–5，Appendix C）。LightGBM 对未见 mixture 的 Spearman ρ 在 1M、60M、1B 设置分别为 98.45、98.64、97.12，明显高于线性回归的 90.08、89.26、88.01，附录中跨 1M、60M、280M、1B 与不同 token 预算的两两相关系数也保持在 0.94–0.99，这些观察支持但不能证明排名不变性（Table 2，Fig. 15）。
+主实验使用 Pile 中 17 个可用且无版权争议的域，以 $$512 \times 1\mathrm{M}$$ 参数模型各训练 1B tokens 来拟合 ridge 与 LightGBM，并在未见过的 1M、60M 和 $$64 \times 1\mathrm{B}$$ 参数模型 mixture 上测试，其中 1B 模型各训练 25B tokens，下游主表覆盖 14 项 0-shot 到 5-shot 任务并以 accuracy 或 normalized accuracy 评测（Sec. 4–5，Appendix C）。LightGBM 对未见 mixture 的 Spearman $$\rho$$ 在 1M、60M、1B 设置分别为 98.45、98.64、97.12，明显高于线性回归的 90.08、89.26、88.01，附录中跨 1M、60M、280M、1B 与不同 token 预算的两两相关系数也保持在 0.94–0.99，这些观察支持但不能证明排名不变性（Table 2，Fig. 15）。
 
 ![Figure 15：不同模型规模与 token 预算下的 mixture 排名相关性](/images/blog/data-mixture/regmix/figure-15-rank-heatmap.png)
 
@@ -102,7 +102,7 @@ read_time: true
 
 *Figure 5(a) 原图（Pile-CC 行呈现最广泛的强相关）*
 
-v2 附录进一步报告 7B 模型训练 100B tokens 时 RegMix 在 13 项任务的平均分为 56.5、Human 为 54.5，使用 512 × 1M 代理得到的 mixture 与使用 128 × 1B 代理得到的 mixture 平均分几乎相同，同时在 100 个 FineWeb URL 域实验中 LightGBM 对 1M 和 60M 未见 mixture 的 ρ 分别达到 99.53 与 98.80（Table 5，Table 10–11）。
+v2 附录进一步报告 7B 模型训练 100B tokens 时 RegMix 在 13 项任务的平均分为 56.5、Human 为 54.5，使用 $$512 \times 1\mathrm{M}$$ 代理得到的 mixture 与使用 $$128 \times 1\mathrm{B}$$ 代理得到的 mixture 平均分几乎相同，同时在 100 个 FineWeb URL 域实验中 LightGBM 对 1M 和 60M 未见 mixture 的 $$\rho$$ 分别达到 99.53 与 98.80（Table 5，Table 10–11）。
 
 ![Figure 1：7B 模型在 25B 到 100B training tokens 下的 RegMix 与 Human 对比](/images/blog/data-mixture/regmix/figure-1-7b.png)
 
@@ -123,7 +123,7 @@ v2 附录进一步报告 7B 模型训练 100B tokens 时 RegMix 在 13 项任务
 
 ### 1. 主要方法
 
-论文解决数据混合在真实 LM 开发中的两个问题，即离线混合方法的 proxy、swarm、回归和优化配置缺乏共识，以及数据域持续演化时每次从头重算 mixture 的成本不断累积（Sec. 1）。Olmix 先用七项实证研究确定 Olmix Base 的配置，再提出 Mixture Reuse，把未受更新影响的域按旧比例聚合成一个 virtual domain，只重新估计其总权重和受影响域权重，Partial Mixture Reuse 还可选择性重算部分未受影响域（Sec. 3–4，Algorithm 1–2）。前一部分提高 proxy surrogate 与目标模型表现的一致性，后一部分把搜索维度从 m′ 降为 1 加集合 D_comp 的元素数，且理论上性能差距由旧比例偏离新最优比例的 reuse gap 与两组域对相同任务的 coupling 共同控制（Sec. 3.3–4.4，Theorem 1–2）。
+论文解决数据混合在真实 LM 开发中的两个问题，即离线混合方法的 proxy、swarm、回归和优化配置缺乏共识，以及数据域持续演化时每次从头重算 mixture 的成本不断累积（Sec. 1）。Olmix 先用七项实证研究确定 Olmix Base 的配置，再提出 Mixture Reuse，把未受更新影响的域按旧比例聚合成一个 virtual domain，只重新估计其总权重和受影响域权重，Partial Mixture Reuse 还可选择性重算部分未受影响域（Sec. 3–4，Algorithm 1–2）。前一部分提高 proxy surrogate 与目标模型表现的一致性，后一部分把搜索维度从 $$m'$$ 降为 1 加集合 $$D_{\mathrm{comp}}$$ 的元素数，且理论上性能差距由旧比例偏离新最优比例的 reuse gap 与两组域对相同任务的 coupling 共同控制（Sec. 3.3–4.4，Theorem 1–2）。
 
 ![Figure 1：数据域演化与反复重算 mixture 的 LM 开发周期](/images/blog/data-mixture/olmix/figure-1-development-cycle.png)
 
@@ -143,11 +143,11 @@ v2 附录进一步报告 7B 模型训练 100B tokens 时 RegMix 在 13 项任务
 
 ### 4. 实验设计和结果
 
-配置研究将 DCLM 划为 24 个 topic domains，用 Olmo 2 架构训练 1B decoder-only target models 至 100B tokens，并以 52 个 math、code 和 QA 任务的平均 BPB 为指标，同时训练不同大小、mixture 与数量的 proxy swarms（Sec. 3.3，Appendix D）。研究观察到至少 15M 参数的 proxy 与 1B target 的排名相关性超过 0.89，最终采用 30M proxy、K ≥ 3(m + 1)、topic-level sparse 与 source-level dense swarm、per-task log-linear regression、优化阶段的 repetition constraints，以及带 λ = 0.05 KL 正则的精确求解器（Sec. 3.3，Fig. 3–8，Table 2–4）。主实验让初始 24 个 DCLM 域经历五次 add、revise、remove 和 partition 更新后达到 64 个域，在 1B 模型、100B tokens、三个 swarm seeds、k = 4 与 R = 1T 下比较 Natural、Full Recomputation、Swarm Reuse、Full Mixture Reuse 和 Partial Mixture Reuse（Sec. 5.1，Table 5）。Full Mixture Reuse 用 216 次 proxy runs 获得相对 Natural 的 11.6% 提升，达到 Full Recomputation 832 次 runs 和 12.2% 提升的 95%，Partial Mixture Reuse 则以 272 次 runs 达到 12.0% 提升和 98% 的全量重算收益（Sec. 5.1，Fig. 10）。最佳 Partial Reuse mixture 在约 20K steps 达到 Natural 约 61K steps 的最终 BPB，数据效率提高 3.05×，而在更受数据约束的 R = 6T 设置下 Full Reuse 以 216 对 832 次 runs 获得 6.94% 对 6.97% 的提升（Sec. 5.1，Fig. 11，Appendix D，Fig. 24）。实验还观察到 reuse gap、1 − ρ* 与实际性能差距同步变化，针对高 coupling 的 software development 域进行 Partial Reuse 可缩小差距，并且 Full Reuse 在 add、remove、partition 的性能与 mixture 距离上均更接近全量重算，revise 后的 mixture TV distance 仅 0.21%，这些结果支持理论界在所测设置中的解释力（Sec. 5.2，Fig. 13–17，Appendix D，Fig. 26）。
+配置研究将 DCLM 划为 24 个 topic domains，用 Olmo 2 架构训练 1B decoder-only target models 至 100B tokens，并以 52 个 math、code 和 QA 任务的平均 BPB 为指标，同时训练不同大小、mixture 与数量的 proxy swarms（Sec. 3.3，Appendix D）。研究观察到至少 15M 参数的 proxy 与 1B target 的排名相关性超过 0.89，最终采用 30M proxy、$$K \ge 3(m+1)$$、topic-level sparse 与 source-level dense swarm、per-task log-linear regression、优化阶段的 repetition constraints，以及带 $$\lambda = 0.05$$ KL 正则的精确求解器（Sec. 3.3，Fig. 3–8，Table 2–4）。主实验让初始 24 个 DCLM 域经历五次 add、revise、remove 和 partition 更新后达到 64 个域，在 1B 模型、100B tokens、三个 swarm seeds、$$k = 4$$ 与 $$R = 1\mathrm{T}$$ 下比较 Natural、Full Recomputation、Swarm Reuse、Full Mixture Reuse 和 Partial Mixture Reuse（Sec. 5.1，Table 5）。Full Mixture Reuse 用 216 次 proxy runs 获得相对 Natural 的 11.6% 提升，达到 Full Recomputation 832 次 runs 和 12.2% 提升的 95%，Partial Mixture Reuse 则以 272 次 runs 达到 12.0% 提升和 98% 的全量重算收益（Sec. 5.1，Fig. 10）。最佳 Partial Reuse mixture 在约 20K steps 达到 Natural 约 61K steps 的最终 BPB，数据效率提高 $$3.05\times$$，而在更受数据约束的 $$R = 6\mathrm{T}$$ 设置下 Full Reuse 以 216 对 832 次 runs 获得 6.94% 对 6.97% 的提升（Sec. 5.1，Fig. 11，Appendix D，Fig. 24）。实验还观察到 reuse gap、$$1 - \rho^*$$ 与实际性能差距同步变化，针对高 coupling 的 software development 域进行 Partial Reuse 可缩小差距，并且 Full Reuse 在 add、remove、partition 的性能与 mixture 距离上均更接近全量重算，revise 后的 mixture TV distance 仅 0.21%，这些结果支持理论界在所测设置中的解释力（Sec. 5.2，Fig. 13–17，Appendix D，Fig. 26）。
 
 ![Figure 4：不同域数量下的 swarm sample complexity](/images/blog/data-mixture/olmix/figure-4-swarm-size.png)
 
-*Figure 4 原图（K = O(m)，约 3(m + 1) 后误差接近零）*
+*Figure 4 原图（$$K = O(m)$$，约 $$3(m+1)$$ 后误差接近零）*
 
 ![Figure 10：域持续演化时的性能提升与 proxy 成本](/images/blog/data-mixture/olmix/figure-10-cost-performance.png)
 

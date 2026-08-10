@@ -35,7 +35,7 @@ read_time: true
 
 ### 2. 与之前论文的不同或改进
 
-先前的 terminal 数据集和环境生成方法主要从仓库、文档、执行轨迹或固定模板一次性构造样本，通常扩大的是任务来源或数量，而不是在同一任务契约上连续增加可执行工作（Sec. 2）。RST 把参考解的增长作为改写起点，同时重写 verifier 与公开指令并复用已通过任务，在十五轮内得到 37,484 个任务、约每个通过任务 $0.05$ 的成本，但代价是方法依赖初始任务的可验证性、改写算子覆盖和后续去重（Sec. 4–5，Fig. 3）。
+先前的 terminal 数据集和环境生成方法主要从仓库、文档、执行轨迹或固定模板一次性构造样本，通常扩大的是任务来源或数量，而不是在同一任务契约上连续增加可执行工作（Sec. 2）。RST 把参考解的增长作为改写起点，同时重写 verifier 与公开指令并复用已通过任务，在十五轮内得到 37,484 个任务、约每个通过任务 $$0.05$$ 的成本，但代价是方法依赖初始任务的可验证性、改写算子覆盖和后续去重（Sec. 4–5，Fig. 3）。
 
 ![Figure 3：从 seed 到更长、更严格任务的单轮改写](/images/blog/command-line-task-synthesis/rst/rst-round.png)
 
@@ -50,10 +50,10 @@ read_time: true
 
 ### 4. 实验设计和结果
 
-实验以 TerminalWorld 的 639 个已验证任务为 bootstrap，逐轮生成并统计产量、结构增长、契约一致性、域与算子多样性，再在各轮匹配子集上用固定推理设置评测 DeepSeek-V4-Pro 的 $\mathrm{pass@4}$ 和 verifier partial credit，训练效用则用 Qwen3.5-27B、Qwen3.5-122B-A10B 的 SFT 及 Qwen3.5-27B 的 PPO 检验（Sec. 5）。
-从 $R_1$ 到 $R_{15}$，每 1,000 次 seed 尝试的通过任务产量保持在 498.2–572.2，候选通过率保持在 74.5%–81.5%，而中位参考解长度从 67 行增至 374 行、命令数从 40 增至 244、CLI 工具数从 17 增至 71，指令长度只从 85 增至 122 个词（Sec. 5.1，Fig. 1，Fig. 7）。
-在 solver 和推理配置不变时，DeepSeek-V4-Pro 的 $\mathrm{pass@4}$ 从 $R_1$ 的 90% 单调降至 $R_{15}$ 的 2.5%，平均 partial credit 从 0.970 降至 0.170，说明结构增长确实转化成了更高的 agent 难度而不是单纯变长（Sec. 5.2，Fig. 12–15）。
-递归仍保留广泛覆盖：$R_{15}$ 使用了 40 个 rewrite operator 中的 36 个，最大单一算子占比 8.0%，且与 Terminal-Bench 2、Terminal-Bench Hard 和 LHTB 的抽样任务没有匹配的 13-token 窗口（Sec. 5.3，Table 2，Fig. 18–22）。
+实验以 TerminalWorld 的 639 个已验证任务为 bootstrap，逐轮生成并统计产量、结构增长、契约一致性、域与算子多样性，再在各轮匹配子集上用固定推理设置评测 DeepSeek-V4-Pro 的 $$\mathrm{pass@4}$$ 和 verifier partial credit，训练效用则用 Qwen3.5-27B、Qwen3.5-122B-A10B 的 SFT 及 Qwen3.5-27B 的 PPO 检验（Sec. 5）。
+从 $$R_1$$ 到 $$R_{15}$$，每 1,000 次 seed 尝试的通过任务产量保持在 498.2–572.2，候选通过率保持在 74.5%–81.5%，而中位参考解长度从 67 行增至 374 行、命令数从 40 增至 244、CLI 工具数从 17 增至 71，指令长度只从 85 增至 122 个词（Sec. 5.1，Fig. 1，Fig. 7）。
+在 solver 和推理配置不变时，DeepSeek-V4-Pro 的 $$\mathrm{pass@4}$$ 从 $$R_1$$ 的 90% 单调降至 $$R_{15}$$ 的 2.5%，平均 partial credit 从 0.970 降至 0.170，说明结构增长确实转化成了更高的 agent 难度而不是单纯变长（Sec. 5.2，Fig. 12–15）。
+递归仍保留广泛覆盖：$$R_{15}$$ 使用了 40 个 rewrite operator 中的 36 个，最大单一算子占比 8.0%，且与 Terminal-Bench 2、Terminal-Bench Hard 和 LHTB 的抽样任务没有匹配的 13-token 窗口（Sec. 5.3，Table 2，Fig. 18–22）。
 
 ![Figure 1：不同递归轮次上的 solver 难度与轨迹长度](/images/blog/command-line-task-synthesis/rst/rst-difficulty.png)
 
@@ -75,7 +75,7 @@ Qwen3.5 轨迹的 SFT 随轮次增加而稳定提升：Qwen3.5-27B 在 Terminal-
 
 论文结论是，solution-first 的递归改写可以在十五轮内以稳定的验证吞吐构造越来越难的 terminal tasks，并且这些任务产生的轨迹能改善 SFT 与 verifier-based RL（Sec. 6）。
 最值得迁移的思想是把“任务变难”落实为新的状态依赖、工具调用、产物和断言，再让参考解、私有测试和公开指令一起更新，而不是只扩写自然语言描述。
-局限在于论文只报告到 15 轮，$R_{15}$ 仍有 p95 近重复相似度 0.703，且结论主要基于 Qwen3.5、DeepSeek-V4-Pro 和现有 terminal benchmark，规模外推、跨生成模型稳定性及更强去重仍待验证（Sec. 5.3，Sec. 6）。
+局限在于论文只报告到 15 轮，$$R_{15}$$ 仍有 p95 近重复相似度 0.703，且结论主要基于 Qwen3.5、DeepSeek-V4-Pro 和现有 terminal benchmark，规模外推、跨生成模型稳定性及更强去重仍待验证（Sec. 5.3，Sec. 6）。
 
 ## CLI-Universe: Towards Verifiable Task Synthesis Engine for Terminal Agents
 
