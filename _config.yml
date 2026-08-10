@@ -1,0 +1,105 @@
+locale: "zh-CN"
+site_theme: "default"
+title: "王海涛"
+title_separator: "·"
+name: &name "王海涛"
+description: &description "王海涛的个人主页，关注大模型训练、推理优化、强化学习与代码智能体。"
+url: "https://selfanti.github.io"
+baseurl: ""
+repository: "selfanti/selfanti.github.io"
+timezone: "Asia/Shanghai"
+
+author:
+  avatar: "profile-avatar.png"
+  name: "王海涛"
+  bio: "硕士研究生，研究大模型训练与后训练、推理系统和代码智能体。"
+  employer: "中国科学院大学 · 计算机科学与技术"
+  email: "1752838035@qq.com"
+  github: "selfanti"
+
+breadcrumbs: false
+future: true
+read_more: "disabled"
+comments:
+  provider:
+atom_feed:
+  hide: true
+
+social:
+  type: "Person"
+  name: "王海涛"
+  links:
+    - "https://github.com/selfanti"
+
+analytics:
+  provider: "false"
+
+include:
+  - _pages
+exclude:
+  - .asset-cache
+  - .bundle
+  - .devcontainer
+  - .github
+  - .jekyll-assets-cache
+  - .sass-cache
+  - assets/js/_main.js
+  - assets/js/plugins
+  - assets/js/vendor
+  - Dockerfile
+  - docker-compose.yaml
+  - Gemfile
+  - LICENSE
+  - node_modules
+  - package.json
+  - package-lock.json
+  - README.md
+  - scripts
+  - tmp
+  - vendor
+keep_files:
+  - .git
+encoding: "utf-8"
+markdown_ext: "markdown,mkdown,mkdn,mkd,md"
+
+markdown: kramdown
+highlighter: rouge
+excerpt_separator: "\n\n"
+kramdown:
+  input: GFM
+  hard_wrap: false
+  auto_ids: true
+  footnote_nr: 1
+  entity_output: as_char
+  toc_levels: 1..6
+  smart_quotes: lsquo,rsquo,ldquo,rdquo
+
+defaults:
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: single
+      author_profile: true
+  - scope:
+      path: ""
+      type: posts
+    values:
+      layout: single
+      author_profile: true
+
+collections:
+  publications:
+    output: true
+    permalink: /publications/:path/
+
+sass:
+  sass_dir: _sass
+  style: compressed
+
+permalink: /:categories/:title/
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-redirect-from
+  - jemoji
