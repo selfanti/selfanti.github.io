@@ -15,16 +15,16 @@ classes: home-page
   <h2 id="research-title">Research Interests</h2>
   <div class="research-interest-list">
     <article>
+      <h3>Code Agents</h3>
+      <p>工具调用、上下文管理、长程任务执行、安全沙箱，以及代码智能体在真实软件环境中的评测。</p>
+    </article>
+    <article>
       <h3>Large Language Model Training</h3>
       <p>监督微调、知识蒸馏与强化学习后训练，重点关注数据质量、训练稳定性和推理能力提升。</p>
     </article>
     <article>
       <h3>LLM Inference Systems</h3>
       <p>注意力计算、KV Cache、前缀复用与推理调度，以及模型服务中的效率、吞吐和可扩展性。</p>
-    </article>
-    <article>
-      <h3>Code Agents</h3>
-      <p>工具调用、上下文管理、长程任务执行、安全沙箱，以及代码智能体在真实软件环境中的评测。</p>
     </article>
   </div>
 </section>
@@ -41,7 +41,6 @@ classes: home-page
       <h3>北京理工大学</h3>
       <p>自动化 · 工学学士</p>
       <time datetime="2020-10">2020.10 - 2024.06</time>
-      <p class="education-note">GPA 3.34 · 睿信书院院级奖学金</p>
     </article>
   </div>
 </section>
