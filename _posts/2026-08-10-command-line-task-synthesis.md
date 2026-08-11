@@ -8,15 +8,16 @@ tags:
   - task synthesis
   - RST
   - CLI-Universe
+  - CalibForge
   - agent training
-excerpt: "两篇命令行智能体任务合成论文的直接拼接式阅读报告：递归验证的 RST 与可执行过滤的 CLI-Universe。"
+excerpt: "三篇命令行智能体任务合成论文的直接拼接式阅读报告：递归验证的 RST、可执行过滤的 CLI-Universe 与对抗式 solver 校准的 CalibForge。"
 toc: true
 toc_label: "目录"
 toc_sticky: true
 read_time: true
 ---
 
-本文按原论文顺序直接拼接两份报告，不把两种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务。
+本文按原论文顺序直接拼接三份报告，不把三种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务，第三篇关注如何用多个 solver 的相对行为把候选任务校准到可学习区间。
 
 ## Recursive Synthesis for Long-Horizon Terminal Tasks（RST）
 
@@ -130,3 +131,93 @@ CLI-Universe-32B 在 TB2.0 达到 33.4%，超过同规模 SkillSynth-32B 的 29.
 论文结论是，结构化能力规格、证据引导的技术研究和多阶段可执行验证结合后，6,000 条高质量轨迹就能显著提升 8B–32B terminal agents，并迁移到其他 agentic benchmark（Sec. 5）。
 最值得迁移的思想是把训练数据质量拆成可检查的契约：候选能力要有现实证据，环境要可复现，测试要过 rubric，提示要真正有用，且初始状态必须 fail、解答后必须 pass。
 局限在于流水线仍受 LLM 生成器能力、6k 数据规模和 SFT 训练范式限制，与最强闭源模型仍有明显差距，后续需要验证更大模型、更大任务池以及基于这些任务的强化学习（Sec. 6）。
+
+## CalibForge: Adversarial Solver Calibration for Scaling Learnable Terminal Tasks
+
+> **论文**：[*CalibForge: Adversarial Solver Calibration for Scaling Learnable Terminal Tasks*](https://arxiv.org/abs/2608.06352v1)<br>
+> **作者**：Fanzhe Meng、Guoxin Chen、Jiale Zhao、Shuang Sun、Zhiyu Lin、Wayne Xin Zhao、Ruihua Song、Ji-Rong Wen、Kai Jia<br>
+> **版本**：arXiv:2608.06352v1，2026-08-06，27 页<br>
+> **研究任务**：自动合成既可执行、可验证，又能为终端智能体提供有效训练信号的命令行任务。
+
+### 1. 主要方法
+
+论文要解决的是自动合成的终端任务常常虽然形式合法，却过于简单、过于困难或无法区分不同能力水平的 solver，因而难以形成高价值训练数据的问题（Sec. 1）。CalibForge 先由 author agent 从线索出发构造 instruction、Docker 环境、初始文件与 tests，通过 structural validation 和 self-solving 后，再用 multi-solver 或 contrastive solver 的验证结果筛选可学习区间（Sec. 2.1–2.3）。
+
+$$
+\begin{aligned}
+C_{\mathrm{multi}}(\mathbf{y})
+  &= \mathbf{1}\!\left[
+     0 < \sum_{i=1}^{K} y_i < K
+     \right], \\
+C_{\mathrm{con}}(y_{\mathrm{s}},y_{\mathrm{w}})
+  &= \mathbf{1}\!\left[
+     y_{\mathrm{s}}=1 \land y_{\mathrm{w}}=0
+     \right].
+\end{aligned}
+$$
+
+当行为条件不满足时，author agent 会利用 pass/fail、步数、自评、失败诊断和完整轨迹修改任务并重新验证，最多迭代 50 轮，这使 solver 从事后评测器变成任务构造过程中的对抗性校准信号（Sec. 2.3，Fig. 2）。
+
+![Figure 2：CalibForge 方法总览](/images/blog/command-line-task-synthesis/calibforge/calibforge-overview.png)
+
+*Figure 2 原图：任务编写、双阶段验证与两种 adversarial solver calibration 的完整闭环。*
+
+核心伪代码（据 Algorithm 1 压缩）：
+
+~~~text
+CALIBFORGE(clue, calibration_spec, R_max = 50)
+  spec <- WIDE_SEARCH_AND_SPECIFY(clue)
+  task <- CONSTRUCT_TASK(spec)
+  while not VALIDATE_AND_SELF_SOLVE(task)
+    task <- REPAIR(task)
+
+  for round <- 1 ... R_max
+    feedback <- PROBE_AND_VERIFY(task, calibration_spec)
+    outcomes <- VERIFIED_OUTCOMES(feedback)
+    if CALIBRATION_CRITERION(outcomes)
+      return RETAIN(task)
+    task <- REVISE(task, feedback)
+    while not VALIDATE_AND_SELF_SOLVE(task)
+      task <- REPAIR(task)
+
+  return DISCARD
+~~~
+
+### 2. 与之前论文的不同或改进
+
+已有终端任务合成方法主要从规格、能力分类、软件仓库、轨迹或技能图生成可执行任务，并用环境构建、测试和单个 solver 的可解性检查来把关，但通常不主动控制任务处于哪个模型能力区间（Sec. 4）。CalibForge 改为根据多个异构 solver 的分歧或指定 strong-pass/weak-fail 关系反复改写任务，在等量 1,300 个任务的消融中把 TB2 准确率从 No Solver 的 22.47% 和 Single Solver 的 24.34% 提高到 Multi Solver 的 29.21% 与 Contrast Solver 的 31.09%，代价是需要多次独立求解和最多 50 轮校准（Table 3，Sec. 3.4）。
+
+![Figure 1：先前任务筛选与 CalibForge 对比](/images/blog/command-line-task-synthesis/calibforge/calibforge-comparison.png)
+
+*Figure 1 原图：从无 solver 或单 solver 检查，转向 multi-solver 分歧与 stronger/weaker 对比校准。*
+
+### 3. 之前研究的做法与问题
+
+终端智能体训练依赖同时对齐 instruction、初始文件、依赖、运行时状态和 verifier 的可执行任务，任何一部分失配都会使样本失去训练价值（Sec. 4）。
+规格驱动方法从种子、领域描述和命令行能力分类扩写任务，artifact 或 trajectory 驱动方法从软件环境、仓库与既有轨迹派生任务，skill 驱动方法则围绕技能或技能图组织生成（Sec. 4）。
+这些路线通常把环境构建和执行验证当作主要质量门槛，但“能够构建且有人能解”并不等于任务难度合适，也无法排除所有 solver 都能轻易通过的浅层解法（Sec. 1，Sec. 2.2）。
+只依赖一个 solver 的 pass/fail 还会把任务质量绑定到单一模型的盲区，难以利用不同模型暴露的互补路径与失败模式（Sec. 2.3）。
+已有 behavioral feedback 更多用于动态 benchmark、curriculum 或改善 solver 自身的下一次尝试，而不是持续修改正在构造的可执行任务本身（Sec. 4）。
+
+### 4. 实验设计和结果
+
+DeepSeek-V4-Pro 负责 authoring，multi-solver 使用 DeepSeek-V4-Flash、GLM-5 和 Kimi K2.5，contrastive calibration 使用 DeepSeek-V4-Pro 与 DeepSeek-V4-Flash，最终收集 5,431 个任务，其中 1,263 个来自 multi-solver、4,168 个来自 contrastive calibration（Sec. 3.1）。
+作者用 DeepSeek-V4-Pro 在统一 scaffold 下蒸馏通过测试的轨迹，对 Qwen3-30B-A3B-Instruct 与 Qwen3.5-35B-A3B 做 10 个 epoch 的全参数 SFT，并在去污染后评测 Terminal-Bench 2.0、731 题 SWE-bench Pro 和 Doc2Repo（Sec. 3.1，Appx. D–E）。
+在 Terminal-Bench 2.0 上，两种模型分别达到 32.58% 和 47.57%，比同 backbone 下最强 baseline 的 26.22% 和 40.82% 高 6.36 与 6.75 个百分点（Table 1）。
+在 SWE-bench Pro 上相对 base model 的提升分别为 27.68 与 3.03 个百分点，在 Doc2Repo 上则为 30.04 与 3.85 个百分点，表明观察到的收益可迁移到仓库级软件工程任务（Table 1）。
+等量任务消融显示 Single Solver 只比 No Solver 高 1.87 个百分点，而 Multi Solver 和 Contrast Solver 分别高 6.74 与 8.62 个百分点，并且 Multi Solver 的保留轨迹数更少，因此结果不支持“收益仅来自更多轨迹”的解释（Table 3）。
+Contrastive calibration 首次 probe 只有 19% 满足目标关系，经过反馈修改后最终 96% 被接受，其中 53% 在五次 probe 内完成、93% 在二十次内完成，说明它既在筛选任务，也在把原本不匹配的候选逐步推向目标区间（Fig. 8，Fig. 9）。
+
+![Figure 8：Contrastive calibration 的初始与最终状态](/images/blog/command-line-task-synthesis/calibforge/calibration-outcomes.png)
+
+*Figure 8 原图：初次 strong-pass/weak-fail 仅占 19%，反复修改与 re-probing 后最终接受率达到 96%。*
+
+![Figure 9：Contrastive calibration 的累计保留曲线](/images/blog/command-line-task-synthesis/calibforge/retention-funnel.png)
+
+*Figure 9 原图：校准预算与累计保留率之间的关系，较难候选形成明显长尾。*
+
+### 5. 结论和启发
+
+论文的核心结论是，相比仅验证任务能否运行或由单个 solver 解出，用相对 solver 行为定义并迭代逼近“可学习区间”能够产出更有效的终端智能体训练数据（Sec. 5）。
+最值得迁移的思想是把模型失败视为可操作的构造反馈，让数据生成器根据真实轨迹定位 shortcut、歧义、脆弱测试和难度错配，而不是一次生成后只做保留或丢弃（Sec. 2.3，Appx. B）。
+需要注意的是，可学习区间取决于所选 solver 集合或 strong/weak 配对，而且持续 probing 会增加显著构造成本，后续工作需要研究更便宜且能跨模型泛化的校准信号（Sec. 2.3，Fig. 9）。
