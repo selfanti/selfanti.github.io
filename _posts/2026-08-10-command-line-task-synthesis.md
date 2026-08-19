@@ -10,15 +10,16 @@ tags:
   - CLI-Universe
   - CalibForge
   - SETA
+  - TMax
   - agent training
-excerpt: "四篇命令行智能体任务合成论文的直接拼接式阅读报告：递归验证的 RST、可执行过滤的 CLI-Universe、对抗式 solver 校准的 CalibForge 与可扩展环境合成的 SETA。"
+excerpt: "五篇命令行智能体任务合成论文的直接拼接式阅读报告：RST、CLI-Universe、CalibForge、SETA 与组合式数据生成及开放 RL 配方 TMax。"
 toc: true
 toc_label: "目录"
 toc_sticky: true
 read_time: true
 ---
 
-本文按原论文顺序直接拼接四份报告，不把四种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务，第三篇关注如何用多个 solver 的相对行为把候选任务校准到可学习区间，第四篇关注如何从真实来源合成环境并按模型能力自适应调节难度。
+本文按加入顺序直接拼接五份报告，不把五种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务，第三篇关注如何用多个 solver 的相对行为把候选任务校准到可学习区间，第四篇关注如何从真实来源合成环境并按模型能力自适应调节难度，第五篇关注如何用组合式合成数据与稳定化 RL 配方训练小型终端智能体。
 
 ## Recursive Synthesis for Long-Horizon Terminal Tasks（RST）
 
@@ -316,3 +317,97 @@ SETA-Evol 的配对分析显示，降低难度后 Qwen3-8B 任务中位通过率
 论文结论是，SETA 用来源 grounding、统一验证和模型感知的环境演化构成了可扩展的终端 RL 环境生成框架，并在 Qwen3-8B 与 DeepSeek-V4-Flash 上取得了跨模型收益（Sec. 4）。
 最值得迁移的思想是把“可学习任务”定义成一组可执行契约，再让训练模型的通过率反过来决定下一步是加难、降难还是换上下文，而不是固定地把所有任务向同一方向改写。
 局限在于实验只覆盖两个模型族和终端交互，训练环境还需经过基模型难度过滤，且论文没有证明更大模型、更大训练预算或 GUI/多模态环境中的扩展性（Sec. 4）。
+
+## TMax: A simple recipe for terminal agents
+
+> **论文**：[*TMax: A simple recipe for terminal agents*](https://arxiv.org/abs/2606.23321v1)<br>
+> **作者**：Hamish Ivison、Junjie Oscar Yin、Rulin Shao、Teng Xiao、Nathan Lambert、Hannaneh Hajishirzi<br>
+> **版本**：arXiv:2606.23321v1，2026-06-22，20 页<br>
+> **研究任务**：低成本生成大规模、难度可控且领域均衡的终端 RL 环境，并给出可复现的开放强化学习配方来训练小参数终端智能体。
+
+### 1. 主要方法
+
+论文解决的是开放终端智能体研究同时缺少大规模复杂环境和稳定 RL 基线的问题，因为既有工作多集中于 bug fixing、简单命令任务或仅用 SFT 验证合成数据（Abstract，Sec. 1–2）。TMax 先从 domain、skill type、primitive skills、persona、language、task complexity、command complexity、fixture 和 verifier 九个轴分层采样任务签名，再让 Gemini-3-Pro 生成 instruction、Dockerfile、unit-test verifier 与源文件，只以 Docker 构建保证可执行性，随后用 Qwen 3.5/3 系列模型在 mini-SWE-agent harness 中进行 DPPO 训练（Sec. 3–4，Fig. 2）。这套设计用组合采样显式控制覆盖与难度，用 RL 中的零方差组过滤替代昂贵的 teacher 解题验证，并以 FP32 LM head、token masking 和大 group size 缓解训练/推理数值偏差与长时域崩塌（Sec. 3–5）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/tmax/tmax-data-pipeline.png" alt="Figure 2: TMax data pipeline">
+  <br>
+  <em>Figure 2：TMax 从九个结构化轴组合任务标准，再生成可执行环境并送入统一终端 harness。</em>
+</div>
+
+核心流程（据 Fig. 2、Sec. 3–4 压缩）：
+
+```text
+GENERATE_TMAX_DATA(num_tasks)
+  pool <- {}
+  repeat num_tasks times:
+    axes <- HIERARCHICAL_SAMPLE(
+      domain, skill_type, primitive_skills, persona,
+      language, task_complexity, command_complexity,
+      fixture, verifier)
+    task <- GEMINI_3_PRO_GENERATE(COMPOSE(axes))
+    if BUILD_DOCKER(task):
+      add task to pool
+  return pool
+
+TRAIN_TMAX(base_model, pool)
+  repeat for each RL step:
+    groups <- ROLLOUT(base_model, pool, group_size = 32)
+    groups <- FILTER(groups, reward_standard_deviation > 0)
+    mask tokens with excessive inference/trainer divergence
+    UPDATE_TOKEN_LEVEL_DPPO(groups, fp32_lm_head = true)
+  return base_model
+```
+{: .paper-pseudocode }
+
+### 2. 与之前论文的不同或改进
+
+先前终端数据主要从仓库和既有任务改编，或从 taxonomy/seed 生成后再用 teacher rollout 验证，常见问题是软件工程域偏置、任务过易、环境数量有限以及生成验证成本高（Sec. 2–3）。TMax 改用九轴组合采样、persona、非文本 fixture 与五类 verifier 扩大覆盖和难度范围，并只保留单次 Docker 构建、把可解性软过滤推迟到 RL rollout 阶段，从而发布 14,600 个环境，但代价是完全依赖强生成模型且未在生成阶段逐题证明可解（Sec. 3，Table 1）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/tmax/tmax-domain-composition.png" alt="Figure 3: domain composition across terminal datasets">
+  <br>
+  <em>Figure 3：相比若干既有数据集集中于一两个领域，TMax 在九个终端领域上的任务占比更均衡。</em>
+</div>
+
+### 3. 之前研究的做法与问题
+
+仓库和 issue 驱动的方法天然适合构造可执行 bug-fixing 环境，却难覆盖环境搭建、系统管理、数据科学、模型训练和从零开发等更广泛的终端工作（Sec. 2.1）。
+taxonomy 或 seed 驱动方法能够脱离现有仓库合成新任务，但若不显式控制复杂度、persona、输入 artifact 和 verifier，任务容易集中在文件操作等浅层模式，或形成“几乎都能解／几乎都不能解”的双峰难度（Sec. 2.1，Sec. 3）。
+多数近期终端数据工作只用 SFT 展示价值，而已有开放 RL 配方的上下文较短、数据较少，或只比初始 SFT checkpoint 提升约一个百分点，难以作为研究训练稳定性的强基线（Sec. 2.2）。
+长达数十步的 sandbox 交互还放大了 inference/trainer logprob 偏差、资源争用和 rollout 超时，使普通 GRPO 在数百步后容易发生 reward collapse（Sec. 5.2）。
+
+### 4. 实验设计和结果
+
+实验以 14,600 个 TMax RL 环境为主数据，另从 2,200 个环境生成 16,500 条 SFT 轨迹，其中 8,000 条成功，并在 2B、4B、9B、27B 的 Qwen 3.5/3.6 及 Qwen 3 8B 上测试最多 500 步 DPPO、32 rollouts/group、8 prompts/batch 和 65,536-token 训练上下文（Sec. 3.3–4.1，Appendix A.6）。
+在 Gemini-3-Flash-Preview 对每个数据集固定抽取 250 题、每题 8 次 rollout 的测试中，TMax 的 pass@1/4/8 为 42%/50%/53%，按 $$\mathrm{Balance}=\exp(-\sum_i p_i\log p_i)/N$$ 计算的 domain 与 skill-type 平衡度为 0.998 和 0.732，且与 TB2/TB-Lite 的 13-gram overlap 均为 0%（Table 1，Appendix A.3–A.4）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/tmax/tmax-pass-at-k.png" alt="Figure A1: pass-at-k difficulty curves">
+  <br>
+  <em>Figure A1：TMax 与 CLI-Gym 处于最难区间，而且 TMax 在增加到 8 次采样后仍保持最低 pass@8。</em>
+</div>
+
+以 Qwen 3.5 9B 为相同起点时，TMax 数据训练得到的 TB-Lite/TB2.1 为 $$57.2\pm2.5$$ 和 $$28.8\pm1.4$$，高于 TermiGen、Endless Terminals、OpenThinker-Agent、TerminalTraj、CLI-Gym 与 SWE-Smith 的对应 RL 结果（Table 2）。
+在 TB2.0 的五次平均中，TMax-9B 达到 27.2%，超过论文列出的其他 10B 以下模型及若干 32B 数据配方，TMax-27B 则达到 42.7%，但这些分数使用论文自有简单 harness 与 Daytona backend，不能和 TB2.1/本地 Podman 结果混为一谈（Fig. 1，Table 8）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/tmax/tmax-terminal-bench.png" alt="Figure 1: TMax Terminal-Bench 2.0 performance">
+  <br>
+  <em>Figure 1：TMax 系列在 32B 以下模型的 TB2.0 参数量—性能曲线上形成新的开放配方 Pareto 前沿。</em>
+</div>
+
+泛化实验中，Qwen 3.5 9B 的 SWE-Bench Verified 从 $$44.0\pm2.0$$ 升到 $$53.5\pm0.6$$，terminal-harness 下 AIME'24/25 从 $$73.3\pm2.7$$ 升到 $$91.1\pm1.6$$，并且在 OpenHands、mini-SWE-agent 和 Terminus-2 上均至少提升约 9 分（Table 4–5）。
+训练分析同时发现旧 SFT mixture 会降低 Qwen 3.5 9B 的 TB-Lite 表现，而普通 GRPO 在 300 步附近明显崩塌，DPPO、FP32 LM head 和 32-rollout group 能减轻但没有消除不稳定性（Sec. 5，Fig. 6–8）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/tmax/tmax-dppo-vs-grpo.png" alt="Figure 7: DPPO versus GRPO training stability">
+  <br>
+  <em>Figure 7：DPPO 在后期仍出现下降，但相比 GRPO 限制了训练 reward collapse 的严重程度。</em>
+</div>
+
+### 5. 结论和启发
+
+论文结论是，九轴组合式环境生成与结果奖励驱动的 DPPO 配方可以用 9B 模型取得 27.2% TB2.0，并在模型尺寸、模型族、任务和 harness 之间表现出可迁移收益（Sec. 4–6）。
+最值得迁移的思想是把生成阶段的昂贵“逐题证明可解”改成便宜的环境构建门槛，再依靠训练策略的多次 rollout 和零方差过滤持续选择当前模型真正能学习的任务。
+局限在于数据完全由 Gemini-3-Pro 合成且尚未证明能超越生成器能力，训练在长时域下仍不稳定、容器基础设施昂贵，并且 TMax 的最佳数字依赖较短上下文和自有简单 harness，跨论文比较必须严格对齐 benchmark 版本、sandbox backend 与推理设置（Sec. 6）。
