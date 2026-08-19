@@ -578,6 +578,10 @@ td > code::after {
   }
 }
 
+.page__content .paper-pseudocode .highlight {
+  font-size: 0.9rem;
+}
+
 @media print {
   .masthead,
   .sidebar,

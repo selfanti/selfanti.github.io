@@ -9,15 +9,16 @@ tags:
   - RST
   - CLI-Universe
   - CalibForge
+  - SETA
   - agent training
-excerpt: "三篇命令行智能体任务合成论文的直接拼接式阅读报告：递归验证的 RST、可执行过滤的 CLI-Universe 与对抗式 solver 校准的 CalibForge。"
+excerpt: "四篇命令行智能体任务合成论文的直接拼接式阅读报告：递归验证的 RST、可执行过滤的 CLI-Universe、对抗式 solver 校准的 CalibForge 与可扩展环境合成的 SETA。"
 toc: true
 toc_label: "目录"
 toc_sticky: true
 read_time: true
 ---
 
-本文按原论文顺序直接拼接三份报告，不把三种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务，第三篇关注如何用多个 solver 的相对行为把候选任务校准到可学习区间。
+本文按原论文顺序直接拼接四份报告，不把四种方法改写成一套统一框架：第一篇关注如何递归地把已有任务变难，第二篇关注如何从能力规格出发构造并筛选高信号任务，第三篇关注如何用多个 solver 的相对行为把候选任务校准到可学习区间，第四篇关注如何从真实来源合成环境并按模型能力自适应调节难度。
 
 ## Recursive Synthesis for Long-Horizon Terminal Tasks（RST）
 
@@ -221,3 +222,97 @@ Contrastive calibration 首次 probe 只有 19% 满足目标关系，经过反�
 论文的核心结论是，相比仅验证任务能否运行或由单个 solver 解出，用相对 solver 行为定义并迭代逼近“可学习区间”能够产出更有效的终端智能体训练数据（Sec. 5）。
 最值得迁移的思想是把模型失败视为可操作的构造反馈，让数据生成器根据真实轨迹定位 shortcut、歧义、脆弱测试和难度错配，而不是一次生成后只做保留或丢弃（Sec. 2.3，Appx. B）。
 需要注意的是，可学习区间取决于所选 solver 集合或 strong/weak 配对，而且持续 probing 会增加显著构造成本，后续工作需要研究更便宜且能跨模型泛化的校准信号（Sec. 2.3，Fig. 9）。
+
+## SETA: Scaling Environments for Terminal Agents
+
+> **论文**：[*SETA: Scaling Environments for Terminal Agents*](https://arxiv.org/abs/2607.10891v1)<br>
+> **作者**：Qijia Shen、Zhiqi Huang、Vamsidhar Kamanuru、Aznaur Aliev、Jay Rainton、Ahmed Awelkair、Zhichen Zeng、Jiajun Li、Shi Dong、Yueming Yuan、Boyuan Ma、Qizheng Zhang、Jiwei Fu、Yuzhen Mao、Wendong Fan、Ping Nie、Philip Torr、Bernard Ghanem、Changran Hu、Jonathan Lingjie Li、Urmish Thakker、Guohao Li<br>
+> **版本**：arXiv:2607.10891v1，2026-07-12，32 页<br>
+> **研究任务**：从有现实依据的来源持续构造可执行、可验证的终端环境，并根据训练模型的能力边界自适应调节任务难度与技术上下文。
+
+### 1. 主要方法
+
+论文解决的是终端智能体强化学习缺少大规模、真实有据、环境可执行且验证可靠的训练任务问题，因为终端任务必须同时定义交互环境、指令、解答脚本和测试逻辑（Abstract，Sec. 1）。SETA 由 SETA-Synth 和 SETA-Evol 两条流水线组成，前者把 Ask Ubuntu、Stack Overflow、Unix/Linux StackExchange、Kaggle 与 NL2Bash 等来源转成标准化 Docker 环境，后者根据训练模型的通过率选择增加难度、降低难度或改变上下文的演化算子，并在每次改写后复用统一验证（Sec. 2）。这种“来源落地 + 环境演化 + 执行验证”的组合同时扩大任务规模、控制可学习难度并保留技术多样性，因此能把数据分布推向更有强化学习信号的能力前沿（Sec. 2，Sec. 3）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/seta/seta-synth-pipeline.png" alt="Figure 1: SETA-Synth pipeline">
+  <br>
+  <em>Figure 1：SETA-Synth 将多种有现实依据的来源转成经过自验证和 rollout 审计的可执行终端环境。</em>
+</div>
+
+核心流程（据 Fig. 1–2、Sec. 2 压缩）：
+
+```text
+SETA(source_pool, existing_pool, training_model)
+  synth_pool <- {}
+  for source in source_pool:
+    draft <- IDEA_AGENT(source, source_adapter, base_prompt)
+    task  <- DATAPOINT_AGENT(draft)
+    while not BUILD_AND_SELF_VALIDATE(task):
+      task <- REPAIR(task)
+    if ALL_ROLLOUTS_FAIL(task):
+      if TRAJECTORY_JUDGE(task) == DESIGN_FLAW:
+        discard task
+      else:
+        add task to synth_pool
+    else:
+      add task to synth_pool
+
+  evol_pool <- {}
+  for task in synth_pool ∪ existing_pool:
+    r <- PASS_RATE(training_model, task)
+    op <- INCREASE_DIFFICULTY if r > 0.5
+          else CHANGE_CONTEXT if 0 < r <= 0.5
+          else DECREASE_DIFFICULTY
+    evolved <- APPLY_OPERATOR(task, op)
+    if BUILD_AND_SELF_VALIDATE(evolved):
+      add evolved to evol_pool
+
+  return synth_pool ∪ evol_pool
+```
+{: .paper-pseudocode }
+
+### 2. 与之前论文的不同或改进
+
+先前终端任务路线多依赖人工 benchmark、仓库或轨迹转换、taxonomy 生成，虽然能提供可执行样本或扩大覆盖面，却通常缺少来源 grounding、统一验证和随训练模型能力变化的难度控制（Sec. 1–2）。SETA 把来源适配、Docker 环境实例化、no-op/oracle 双向测试、全失败任务的 Trajectory Judge 与按通过率选算子的环境级演化串成一条闭环，得到 4,567 个环境并以 560 个训练环境支撑 GRPO，但代价是需要多阶段 agent 生成、独立 rollout 审计和反复构建验证（Sec. 2–3）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/seta/seta-evol-pipeline.png" alt="Figure 2: SETA-Evol pipeline">
+  <br>
+  <em>Figure 2：SETA-Evol 根据任务通过率在增加难度、改变上下文和降低难度之间自适应选择环境级改写策略。</em>
+</div>
+
+### 3. 之前研究的做法与问题
+
+人工编写的终端 benchmark 和基于仓库的 SWE 环境通常具有较强验证性，但规模和任务类型受限，且 GitHub issue 或 pull request 这类自然监督并不覆盖广泛的系统运维、数据处理和机器学习流程（Sec. 1–2）。
+Self-Instruct、WizardLM 和 Evol-Instruct 等方法主要演化文本指令、示例或代码，不能直接保证环境状态、交互工具、测试逻辑与公开指令一致（Sec. 2）。
+TermiGen、TerminalTraj 和 Endless Terminals 等终端合成路线扩大了任务或轨迹数量，但论文认为它们较少同时利用人类验证来源、可执行环境和 RL 友好的自适应难度（Sec. 2，Table 1）。
+只做 Docker 构建、no-op 和 oracle 检查还可能漏掉“测试要求了指令没有说明的约定”，因为解答脚本和测试可能共享同一个隐藏假设；SETA 因此对全 rollout 失败任务增加了独立 Trajectory Judge（Sec. 2.1，Appendix）。
+
+### 4. 实验设计和结果
+
+SETA-Env 包含 4,567 个验证环境，其中 3,255 个由 SETA-Synth 生成、1,312 个由 SETA-Evol 演化，覆盖 14 个技术类别，并用四个模型的任务级共识通过率 $$\bar r_t=\tfrac{1}{4}\sum_m\tilde r_{t,m}$$ 描述难度分布（Sec. 2.3，Fig. 3）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/seta/seta-env-stats.png" alt="Figure 3: SETA-Env dataset statistics">
+  <br>
+  <em>Figure 3：SETA-Env 的类别覆盖、共识难度分布以及从 Qwen3-8B 到 GPT-5.4/Kimi-K2.5 的模型特定通过情况。</em>
+</div>
+
+作者使用 CAMEL Terminal Toolkit，在 Qwen3-8B 上以 GRPO 和动态采样训练，因计算约束从 SETA-Env 过滤并均匀采样 560 个环境，另在 DeepSeek-V4-Flash 上用同一 harness 做跨 backbone 验证（Sec. 3.1）。
+主结果中，表格报告的 Qwen3-8B SETA (RL) 在 Terminal-Bench 1.0/2.0 的 8 次重复均值为 $$17.8\pm1.2\%$$ 和 $$10.7\pm1.3\%$$，论文另报告最佳单次 TB2.0 为 $$12\%$$，相对最佳 Qwen3-8B base 的 $$3.6\%$$ 约提升 3.3 倍（Table 1，Sec. 3.2）。
+在不同模型族上，DeepSeek-V4-Flash 的 TB2.0 pass@1 从 $$40\%$$ 提升到 $$43.0\pm2.5\%$$，pass@5 从 $$54\%$$ 提升到 $$58\%$$；同一 Qwen3-8B 训练信号还把 CRUST-Bench、CompileBench 和 QuixBugs 的 pass@4 从 15%/6.7%/7.5% 提升到 24%/40%/15.0%（Sec. 3.2–3.3）。
+SETA-Evol 的配对分析显示，降低难度后 Qwen3-8B 任务中位通过率从 6% 移到 38%，增加难度后从 83% 移到 69%，改变上下文的 553 对中有 46.1% 跨越技术类别边界，说明演化确实同时改变了难度和技术语境（Sec. 2.3，Fig. 4）。
+训练曲线中平均 reward 的平滑趋势从约 0.3 上升到约 0.6，平均每轮返回字符数从接近 0 上升到约 6,500，作者据此观察到 RL 模型逐渐形成更长的、基于执行反馈的规划，而不只是立即调用命令（Sec. 3.4，Fig. 5）。
+
+<div align="center">
+  <img src="/images/blog/command-line-task-synthesis/seta/seta-training-trend.png" alt="Figure 5: SETA RL training curves">
+  <br>
+  <em>Figure 5：SETA-Env 上的 RL 训练过程中，平均 reward 与每轮返回字符数的平滑曲线均呈上升趋势。</em>
+</div>
+
+### 5. 结论和启发
+
+论文结论是，SETA 用来源 grounding、统一验证和模型感知的环境演化构成了可扩展的终端 RL 环境生成框架，并在 Qwen3-8B 与 DeepSeek-V4-Flash 上取得了跨模型收益（Sec. 4）。
+最值得迁移的思想是把“可学习任务”定义成一组可执行契约，再让训练模型的通过率反过来决定下一步是加难、降难还是换上下文，而不是固定地把所有任务向同一方向改写。
+局限在于实验只覆盖两个模型族和终端交互，训练环境还需经过基模型难度过滤，且论文没有证明更大模型、更大训练预算或 GUI/多模态环境中的扩展性（Sec. 4）。
